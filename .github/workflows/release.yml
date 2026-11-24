@@ -1,0 +1,46 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+name: Release
+
+on:
+  push:
+    # SemVer tags only (v1.2.3, v1.2.3-rc.1): the Go module proxy does not
+    # recognise anything else as a module version.
+    tags:
+      - "v*.*.*"
+
+permissions: {}
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      # id-token is required by cosign keyless signing. No attestations are
+      # produced, so attestations: write is deliberately not granted.
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          # goreleaser publishes through GITHUB_TOKEN in its environment and
+          # only reads git history, so the token need not stay in git config.
+          persist-credentials: false
+
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
+        with:
+          go-version-file: go.mod
+          # Signed release artifacts are built from a clean cache: a restored
+          # build cache is an input nothing in this job verifies.
+          cache: false
+
+      - uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
+
+      # The before hooks in .goreleaser.yaml also write the third-party
+      # notices (tools/notices.sh), which downloads go-licenses with `go run`.
+      - uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
+        with:
+          version: "~> v2"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
