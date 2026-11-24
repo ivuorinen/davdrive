@@ -1,0 +1,6 @@
+# Default output of `go build` at the repository root (named after the module path).
+/davdrive
+
+# GoReleaser output, and the notices file tools/notices.sh writes for it.
+/dist/
+/build/
