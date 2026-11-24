@@ -1,0 +1,83 @@
+package server
+
+import (
+	"encoding/binary"
+	"errors"
+	"io"
+	"net"
+	"testing"
+	"time"
+)
+
+// authSysBody encodes an AUTH_SYS credential body as a kernel client
+// sends it.
+func authSysBody(machine string, uid, gid uint32) []byte {
+	b := binary.BigEndian.AppendUint32(nil, 12345)             // stamp
+	b = binary.BigEndian.AppendUint32(b, uint32(len(machine))) //nolint:gosec // G115: test names are a few bytes
+	b = append(b, machine...)
+	for len(b)%4 != 0 {
+		b = append(b, 0)
+	}
+	b = binary.BigEndian.AppendUint32(b, uid)
+	b = binary.BigEndian.AppendUint32(b, gid)
+
+	return binary.BigEndian.AppendUint32(b, 0) // no supplementary gids
+}
+
+func TestOwnerOnly(t *testing.T) {
+	const owner = 501
+	allow := ownerOnly(owner)
+	for _, tc := range []struct {
+		name         string
+		proc, flavor uint32
+		body         []byte
+		want         bool
+	}{
+		{"owner", 1, authSys, authSysBody("mac", owner, 20), true},
+		{"root", 1, authSys, authSysBody("mac", 0, 0), true},
+		{"other user", 1, authSys, authSysBody("mac", 502, 20), false},
+		{"name padding is skipped", 1, authSys, authSysBody("hostname", owner, 20), true},
+		{"unpadded name length", 1, authSys, authSysBody("abcde", 502, 20), false},
+		{"AUTH_NULL compound", 1, 0, nil, false},
+		{"AUTH_NULL ping", rpcProcNull, 0, nil, true},
+		{"truncated body", 1, authSys, authSysBody("mac", owner, 20)[:10], false},
+		{"oversized name", 1, authSys, binary.BigEndian.AppendUint32(make([]byte, 4), 4096), false},
+	} {
+		if got := allow(tc.proc, tc.flavor, tc.body); got != tc.want {
+			t.Errorf("%s: allowed = %v, want %v", tc.name, got, tc.want)
+		}
+	}
+}
+
+// TestReservedPortListenerRefusesEphemeralPorts connects from an ordinary
+// (ephemeral, unprivileged) port, as a non-root program would, and expects
+// the connection to be closed without being handed to the server.
+func TestReservedPortListenerRefusesEphemeralPorts(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	l := reservedPortListener{ln}
+	defer func() { _ = l.Close() }()
+	accepted := make(chan net.Conn, 1)
+	go func() {
+		if c, err := l.Accept(); err == nil {
+			accepted <- c
+		}
+	}()
+
+	c, err := net.Dial("tcp", ln.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = c.Close() }()
+	_ = c.SetReadDeadline(time.Now().Add(5 * time.Second))
+	if _, err := c.Read(make([]byte, 1)); !errors.Is(err, io.EOF) {
+		t.Fatalf("read from refused connection = %v, want EOF", err)
+	}
+	select {
+	case <-accepted:
+		t.Fatal("connection from an unreserved port was accepted")
+	default:
+	}
+}
