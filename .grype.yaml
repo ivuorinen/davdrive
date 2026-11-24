@@ -1,0 +1,15 @@
+# Each ignore records why the advisory cannot affect davdrive. Re-check
+# them whenever rclone, the source of these modules, is upgraded.
+ignore:
+  # go.opentelemetry.io/otel reaches go.sum only through rclone's own tests
+  # (github.com/rclone/rclone/vfs.test -> backend/all -> googlecloudstorage).
+  # go.mod does not require it and `go version -m` shows it absent from the
+  # built binary.
+  - vulnerability: GO-2026-6975
+    package:
+      name: go.opentelemetry.io/otel
+    reason: not linked into the binary; reached only through rclone's tests
+  - vulnerability: GHSA-q7gw-24fr-5p69
+    package:
+      name: go.opentelemetry.io/otel/trace
+    reason: not linked into the binary; reached only through rclone's tests
