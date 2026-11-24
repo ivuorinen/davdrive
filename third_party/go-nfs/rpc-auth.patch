@@ -1,0 +1,87 @@
+--- a/server.go
++++ b/server.go
+@@ -36,6 +36,14 @@
+ 	// stopped, since the clients holding them are gone with it.
+ 	NFSv4Locker ByteRangeLocker
+ 
++	// Authorize, when set, is asked about every call before it is
++	// dispatched, with the procedure number and the call's credential
++	// (flavor and opaque body, RFC 5531 section 8.2). A false result
++	// answers the call with MSG_DENIED / AUTH_ERROR (AUTH_TOOWEAK) and runs
++	// no handler. Nil accepts every call. (Changed for davdrive; see
++	// ../go-nfs-UPSTREAM.md.)
++	Authorize func(proc, flavor uint32, body []byte) bool
++
+ 	// NFSv4 protocol state (open and lock stateids, client leases),
+ 	// created on first use.
+ 	nfs4StateMgr  *nfs4StateManager
+--- a/conn.go
++++ b/conn.go
+@@ -273,6 +273,15 @@
+ 		}
+ 		return c.err(ctx, w, rpcErr)
+ 	}
++	// Authorize runs before the handler, so a refused call touches no
++	// state. (Changed for davdrive; see ../go-nfs-UPSTREAM.md.)
++	if authorize := c.Server.Authorize; authorize != nil && !authorize(w.req.Proc, w.req.Cred.Flavor, w.req.Cred.Body) {
++		Log.Debugf("Refused %v: credential flavor %d not authorized", w.req, w.req.Cred.Flavor)
++		if err := w.drain(ctx); err != nil {
++			return err
++		}
++		return c.err(ctx, w, &AuthError{AuthStatTooWeak})
++	}
+ 	appError := handler(ctx, w, c.Server.Handler)
+ 	if drainErr := w.drain(ctx); drainErr != nil {
+ 		return drainErr
+@@ -388,9 +397,18 @@
+ 		if err != nil {
+ 			return err
+ 		}
++		return xdr.Write(w.writer, &code)
+ 	}
+ 
+-	return xdr.Write(w.writer, &code)
++	// A denied reply carries reject_stat, numbered on its own (RFC 5531
++	// section 9): RPC_MISMATCH = 0, AUTH_ERROR = 1. ResponseCode values come
++	// from accept_stat and do not fit. (Changed for davdrive; see
++	// ../go-nfs-UPSTREAM.md.)
++	rejectStat := uint32(0)
++	if code == ResponseCodeAuthError {
++		rejectStat = 1
++	}
++	return xdr.Write(w.writer, &rejectStat)
+ }
+ 
+ // Write a response to an xdr message
+--- a/errors.go
++++ b/errors.go
+@@ -88,10 +88,11 @@
+ 	return "Auth Status: Unknown"
+ }
+ 
+-// MarshalBinary sends the specific auth status
++// MarshalBinary sends the specific auth status. XDR is big-endian.
++// (Changed for davdrive; see ../go-nfs-UPSTREAM.md.)
+ func (a *AuthError) MarshalBinary() (data []byte, err error) {
+ 	var resp [4]byte
+-	binary.LittleEndian.PutUint32(resp[:], uint32(a.AuthStat))
++	binary.BigEndian.PutUint32(resp[:], uint32(a.AuthStat))
+ 	return resp[:], nil
+ }
+ 
+@@ -110,11 +111,12 @@
+ 	return fmt.Sprintf("RPC Mismatch: Expected version between %d and %d.", r.Low, r.High)
+ }
+ 
+-// MarshalBinary sends the specific rpc mismatch range
++// MarshalBinary sends the specific rpc mismatch range. XDR is big-endian.
++// (Changed for davdrive; see ../go-nfs-UPSTREAM.md.)
+ func (r *RPCMismatchError) MarshalBinary() (data []byte, err error) {
+ 	var resp [8]byte
+-	binary.LittleEndian.PutUint32(resp[0:4], uint32(r.Low))
+-	binary.LittleEndian.PutUint32(resp[4:8], uint32(r.High))
++	binary.BigEndian.PutUint32(resp[0:4], uint32(r.Low))
++	binary.BigEndian.PutUint32(resp[4:8], uint32(r.High))
+ 	return resp[:], nil
+ }
+ 

@@ -1,0 +1,39 @@
+--- a/nfs4_attrs.go
++++ b/nfs4_attrs.go
+@@ -70,7 +70,10 @@
+ var (
+ 	// nfs4SupportedAttrs lists the write-only time_access_set and
+ 	// time_modify_set too: clients only send the attributes a server
+-	// says it supports.
++	// says it supports. hidden and system are left out: billy has
++	// nowhere to keep them, and the macOS client sets them on every
++	// CREATE and OPEN of a server that lists them. (Changed for
++	// davdrive; see ../go-nfs-UPSTREAM.md.)
+ 	nfs4SupportedAttrs = nfs4BitmapOf(
+ 		nfs4AttrSupportedAttrs,
+ 		nfs4AttrType,
+@@ -94,7 +97,6 @@
+ 		nfs4AttrFilesAvail,
+ 		nfs4AttrFilesFree,
+ 		nfs4AttrFilesTotal,
+-		nfs4AttrHidden,
+ 		nfs4AttrHomogeneous,
+ 		nfs4AttrMaxFileSize,
+ 		nfs4AttrMaxLink,
+@@ -111,7 +113,6 @@
+ 		nfs4AttrSpaceFree,
+ 		nfs4AttrSpaceTotal,
+ 		nfs4AttrSpaceUsed,
+-		nfs4AttrSystem,
+ 		nfs4AttrTimeAccess,
+ 		nfs4AttrTimeAccessSet,
+ 		nfs4AttrTimeDelta,
+@@ -209,7 +210,7 @@
+ 		case nfs4AttrSize:
+ 			v = attr.Filesize
+ 		case nfs4AttrLinkSupport, nfs4AttrSymlinkSupport, nfs4AttrNamedAttr,
+-			nfs4AttrCaseInsensitive, nfs4AttrHidden, nfs4AttrSystem:
++			nfs4AttrCaseInsensitive:
+ 			v = false
+ 		case nfs4AttrFSID:
+ 			v = nfs4FSID{Major: 0, Minor: 1}
