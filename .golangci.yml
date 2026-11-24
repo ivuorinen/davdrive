@@ -1,0 +1,119 @@
+---
+# yaml-language-server: $schema=https://golangci-lint.run/jsonschema/golangci.jsonschema.json
+version: "2"
+
+# golangci-lint configuration, adapted from ivuorinen/gh-action-readme's.
+# Changes from there: the GitHub-token forbidigo rule and the testutil depguard
+# rule are project-specific and replaced (forbidigo is off: with no rules it
+# bans fmt.Print*, which is this CLI's output); goheader is off (no header
+# template here); importas enforces this repo's aliases.
+#
+# third_party/go-nfs is its own module, so `golangci-lint run ./...` from the
+# repository root never lints the vendored copy.
+
+run:
+  timeout: 5m
+  go: "1.27"
+
+linters:
+  default: standard
+
+  enable:
+    # Additional linters beyond standard
+    - asciicheck
+    - bidichk
+    - bodyclose
+    - canonicalheader
+    - contextcheck
+    - depguard
+    - dupl
+    - errname
+    - exhaustive
+    - forcetypeassert
+    - funcorder
+    - goconst
+    - gocritic
+    - gocyclo
+    - godot
+    - godox
+    - gosec
+    - iface
+    - importas
+    - lll
+    - maintidx
+    - misspell
+    - nilerr
+    - nlreturn
+    - nolintlint
+    - perfsprint
+    - prealloc
+    - predeclared
+    - reassign
+    - revive
+    - tagalign
+    - testableexamples
+    - thelper
+    - usestdlibvars
+    - usetesting
+
+  disable:
+    # Disable noisy linters
+    - funlen
+    - wsl
+    - wrapcheck
+
+  settings:
+    lll:
+      line-length: 120
+    misspell:
+      locale: US
+    gocyclo:
+      min-complexity: 10
+    goconst:
+      min-len: 2
+      min-occurrences: 3
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+    depguard:
+      rules:
+        no-rclone-backend-bundle:
+          deny:
+            - pkg: github.com/rclone/rclone/backend/all
+              desc: "registers all ~70 rclone backends and bloats the binary; import only the backends used (local, webdav)"
+    importas:
+      no-unaliased: true
+      alias:
+        - pkg: github.com/willscott/go-nfs
+          alias: nfs
+        - pkg: github.com/go-git/go-billy/v5
+          alias: billy
+        - pkg: github.com/rclone/rclone/fs/config
+          alias: rconfig
+        - pkg: github.com/rclone/rclone/fs/log
+          alias: rlog
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+    - golines
+
+  settings:
+    golines:
+      max-len: 120
+    gofmt:
+      simplify: true
+      rewrite-rules:
+        - pattern: "interface{}"
+          replacement: "any"
+        - pattern: "a[b:len(a)]"
+          replacement: "a[b:]"
+    goimports:
+      local-prefixes:
+        - github.com/ivuorinen/davdrive
+
+issues:
+  max-issues-per-linter: 150
+  max-same-issues: 50
+  fix: true
