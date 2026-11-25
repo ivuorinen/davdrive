@@ -7,3 +7,42 @@
 
 # Written by mise when it installs the tools pinned in mise.toml; versions stay pinned there.
 /mise.lock
+
+# Temporary files
+/.tmp/
+*.tmp
+
+# Go: test binaries (go test -c), coverage and profiling output, local workspaces.
+*.test
+*.out
+*.prof
+go.work
+go.work.sum
+
+# Credentials for local runs, such as DAVDRIVE_PASSWORD.
+.env
+.env.*
+
+# Editors and IDEs.
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# AI coding agents: personal settings, notes, agent memory and worktrees. The shared
+# configuration (.claude/settings.json, .github/copilot/settings.json, .omp/) stays tracked.
+.claude/settings.local.json
+.claude/worktrees/
+.claude/agent-memory-local/
+CLAUDE.local.md
+AGENTS.local.md
+.github/copilot/settings.local.json
+# The shared agent instructions stay tracked even where a global gitignore excludes them;
+# this file takes precedence over core.excludesFile.
+!AGENTS.md
+
+# Operating system files.
+.DS_Store
+._*
+Thumbs.db
