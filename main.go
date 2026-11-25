@@ -61,10 +61,19 @@ func newRootCmd() *cobra.Command {
 var version string
 
 func buildVersion() string {
-	if version != "" {
-		return version
-	}
-	if bi, ok := debug.ReadBuildInfo(); ok && bi.Main.Version != "" && bi.Main.Version != "(devel)" {
+	bi, _ := debug.ReadBuildInfo()
+
+	return versionOf(version, bi)
+}
+
+// versionOf picks the version GoReleaser stamped, else the main module's
+// version in bi, which go install module@version and go build in a tagged
+// checkout record, else "dev".
+func versionOf(stamped string, bi *debug.BuildInfo) string {
+	switch {
+	case stamped != "":
+		return stamped
+	case bi != nil && bi.Main.Version != "" && bi.Main.Version != "(devel)":
 		return bi.Main.Version
 	}
 

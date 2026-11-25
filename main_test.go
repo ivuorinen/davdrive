@@ -36,34 +36,41 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-// TestVersion checks what --version prints for a GoReleaser build and for
-// a build from source.
+// TestVersion checks that --version prints the version GoReleaser stamps.
 func TestVersion(t *testing.T) {
-	fallback := "dev"
-	if bi, ok := debug.ReadBuildInfo(); ok && bi.Main.Version != "" && bi.Main.Version != "(devel)" {
-		fallback = bi.Main.Version
+	const stamped = "v2.0.0"
+	old := version
+	version = stamped
+	t.Cleanup(func() { version = old })
+	root := newRootCmd()
+	var out bytes.Buffer
+	root.SetOut(&out)
+	root.SetArgs([]string{"--version"})
+	if err := root.Execute(); err != nil {
+		t.Fatal(err)
 	}
+	if got, want := out.String(), "davdrive version "+stamped+"\n"; got != want {
+		t.Errorf("--version printed %q, want %q", got, want)
+	}
+}
+
+func TestVersionOf(t *testing.T) {
+	const fallback = "dev"
+	module := func(v string) *debug.BuildInfo { return &debug.BuildInfo{Main: debug.Module{Version: v}} }
 	for _, tc := range []struct {
-		name, stamped, want string
+		name, stamped string
+		bi            *debug.BuildInfo
+		want          string
 	}{
-		{"stamped by GoReleaser", "v1.2.3", "v1.2.3"},
-		{"built from source", "", fallback},
+		{"stamped by GoReleaser", "v1.2.3", module("v1.0.0"), "v1.2.3"},
+		{"go install or a tagged checkout", "", module("v1.0.0"), "v1.0.0"},
+		{"built without version control", "", module("(devel)"), fallback},
+		{"no module version", "", module(""), fallback},
+		{"no build info", "", nil, fallback},
 	} {
-		t.Run(tc.name, func(t *testing.T) {
-			old := version
-			version = tc.stamped
-			t.Cleanup(func() { version = old })
-			root := newRootCmd()
-			var out bytes.Buffer
-			root.SetOut(&out)
-			root.SetArgs([]string{"--version"})
-			if err := root.Execute(); err != nil {
-				t.Fatal(err)
-			}
-			if got, want := out.String(), "davdrive version "+tc.want+"\n"; got != want {
-				t.Errorf("--version printed %q, want %q", got, want)
-			}
-		})
+		if got := versionOf(tc.stamped, tc.bi); got != tc.want {
+			t.Errorf("%s: versionOf = %q, want %q", tc.name, got, tc.want)
+		}
 	}
 }
 

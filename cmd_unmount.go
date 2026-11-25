@@ -86,10 +86,10 @@ func notAnsweringAfterUnmount(m *config.Mount, err error) error {
 // stopServer signals the daemon and waits until its control socket goes
 // away, reporting the uploads it is still finishing.
 func stopServer(ctx context.Context, m *config.Mount, pid int) error {
-	proc, err := os.FindProcess(pid)
-	if err != nil {
-		return err
-	}
+	// FindProcess always succeeds on Unix. Signal, unlike kill(2), refuses
+	// pid 0 and -1, which would reach this process group or every process
+	// of the user: pid comes from the control socket's reply.
+	proc, _ := os.FindProcess(pid)
 	if err := proc.Signal(os.Interrupt); err != nil {
 		return fmt.Errorf("stopping the server (pid %d): %w", pid, err)
 	}

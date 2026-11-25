@@ -195,17 +195,22 @@ func TestUnmountServerStuck(t *testing.T) {
 	checkErr(t, err, "k is not mounted, but its server does not answer (status request: 500")
 }
 
-// TestUnmountSignalFails reports a daemon pid that cannot be signaled.
+// TestUnmountSignalFails reports a daemon pid that cannot be signaled: a
+// daemon that has exited, and a reply with no pid, where kill(2) would
+// reach unmount's own process group instead.
 func TestUnmountSignalFails(t *testing.T) {
-	e := newEnv(t)
-	m := e.mount(t, "k")
 	gone := exec.CommandContext(t.Context(), "true")
 	if err := gone.Run(); err != nil {
 		t.Fatal(err)
 	}
-	pid := gone.ProcessState.Pid()
-	serveControl(t, m.SocketPath(), statusReply(server.Status{PID: pid}))
+	for _, pid := range []int{gone.ProcessState.Pid(), 0} {
+		t.Run("pid "+strconv.Itoa(pid), func(t *testing.T) {
+			e := newEnv(t)
+			m := e.mount(t, "k")
+			serveControl(t, m.SocketPath(), statusReply(server.Status{PID: pid}))
 
-	_, err := e.run(t, "unmount")
-	checkErr(t, err, "stopping the server (pid "+strconv.Itoa(pid)+")")
+			_, err := e.run(t, "unmount")
+			checkErr(t, err, "stopping the server (pid "+strconv.Itoa(pid)+")")
+		})
+	}
 }
