@@ -162,9 +162,18 @@ func compareRemote(t *testing.T, dir, name string, want []byte, chunk int) {
 // goroutines, as several NFS connections would, with uploads starting
 // between writes. Without pathLocks, 9 of 10 runs of it lost writes; one
 // round alone catches that rarely, hence the rounds.
+//
+// Under the race detector it is skipped: its 1 ms write-back reaches a
+// data race in rclone's write-back queue (_cancelUpload reads done after
+// unlocking). The test-race task runs it again without -race. Remove the
+// skip once a fixed rclone is required:
+// https://github.com/ivuorinen/davdrive/issues/2
 func TestConcurrentWrites(t *testing.T) {
 	if testing.Short() {
 		t.Skip("takes about 20 s")
+	}
+	if raceEnabled {
+		t.Skip("reaches a data race in rclone's write-back queue; see https://github.com/ivuorinen/davdrive/issues/2")
 	}
 	for range 30 {
 		checkWrites(t, 16, time.Millisecond)

@@ -32,9 +32,14 @@ run = "go test ./..."
 description = "Run the tests without the slow concurrent-write test"
 run = "go test -short ./..."
 
+# TestConcurrentWrites skips itself under -race, so it runs once more
+# without it (https://github.com/ivuorinen/davdrive/issues/2).
 [tasks.test-race]
-description = "Run tests with the race detector"
-run = "go test -race ./..."
+description = "Run tests with the race detector, then the concurrent-write test without it"
+run = '''
+go test -race ./...
+go test -run '^TestConcurrentWrites$' ./internal/fsys
+'''
 
 # `go test -cover` gives statement coverage; gobco -branch adds branch
 # coverage, listing each if, for and switch branch the tests never took.
