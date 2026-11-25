@@ -12,6 +12,8 @@ import (
 	"slices"
 	"testing"
 	"time"
+
+	nfs "github.com/willscott/go-nfs"
 )
 
 const (
@@ -24,6 +26,10 @@ const (
 	nfsProgram    = 100003
 	procCompound  = 1
 	opPutRootFH   = 24
+	opCreate      = 6
+	nf4Dir        = 2
+	nfs4OK        = 0
+	nfs4ErrExist  = 17
 	rpcReadWindow = 10 * time.Second
 )
 
@@ -124,6 +130,31 @@ func TestNFSServesOwnerOnly(t *testing.T) {
 	}
 }
 
+// plainNFSPort serves s's NFS handler and access check on a second loopback
+// listener without the reserved-port rule, so a test can speak NFS to the
+// share on Linux too, and returns its port.
+func plainNFSPort(t *testing.T, s *Server) int {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	plain := &nfs.Server{Handler: s.nfs.Handler, EnabledNFSVersions: []uint32{4}, Authorize: s.nfs.Authorize}
+	go func() { _ = plain.Serve(ln) }()
+	// Close only closes listeners Serve has taken up; closing ln covers
+	// a Serve that has not started yet.
+	t.Cleanup(func() {
+		_ = plain.Close()
+		_ = ln.Close()
+	})
+	addr, ok := ln.Addr().(*net.TCPAddr)
+	if !ok {
+		t.Fatalf("listener address %v is not TCP", ln.Addr())
+	}
+
+	return addr.Port
+}
+
 // TestStopWithExpiredContext stops a server holding an open NFS
 // connection with no time left: Stop must still return and drop it.
 func TestStopWithExpiredContext(t *testing.T) {
@@ -148,4 +179,47 @@ func TestStopWithExpiredContext(t *testing.T) {
 		t.Fatalf("NFS connection after Stop: read err = %v, want it closed", err)
 	}
 	assertReleased(t, m)
+}
+
+// compoundCreateDir is a v4.0 COMPOUND of PUTROOTFH and CREATE of the
+// directory name, with no attributes.
+func compoundCreateDir(name string) []byte {
+	b := binary.BigEndian.AppendUint32(nil, 0) // tag: empty
+	b = binary.BigEndian.AppendUint32(b, 0)    // minor version
+	b = binary.BigEndian.AppendUint32(b, 2)    // operations
+	b = binary.BigEndian.AppendUint32(b, opPutRootFH)
+	b = binary.BigEndian.AppendUint32(b, opCreate)
+	b = binary.BigEndian.AppendUint32(b, nf4Dir)            // object type
+	b = binary.BigEndian.AppendUint32(b, uint32(len(name))) //nolint:gosec // G115: a short test name
+	b = append(b, name...)
+	for len(b)%4 != 0 {
+		b = append(b, 0)
+	}
+	b = binary.BigEndian.AppendUint32(b, 0) // attribute mask: no words
+
+	return binary.BigEndian.AppendUint32(b, 0) // attribute values: empty
+}
+
+// TestNFSCreateRefusesTakenName creates a directory over NFS twice: the
+// second CREATE must answer NFS4ERR_EXIST. On a Linux mount, mkdir of a
+// directory the client has not seen since mounting reaches this CREATE,
+// and an NFS4_OK makes it report success, breaking every program that uses
+// mkdir as a lock.
+func TestNFSCreateRefusesTakenName(t *testing.T) {
+	isolate(t)
+	dav := newDAV(t, davOptions{})
+	s, _ := startServer(t, newMount("create", dav.URL), "")
+	c := dialNFS(t, plainNFSPort(t, s))
+	owner := uint32(os.Getuid()) //nolint:gosec // G115: uids are 32-bit on darwin and linux
+
+	// After the RPC header: COMPOUND status, empty tag, two results,
+	// PUTROOTFH OK, then CREATE and its status.
+	for i, want := range []uint32{nfs4OK, nfs4ErrExist} {
+		xid := uint32(i + 1)
+		got := rpcExchange(t, c, rpcFrame(xid, procCompound, owner, compoundCreateDir("taken")))
+		wantPrefix := []uint32{xid, rpcReply, msgAccepted, 0, 0, 0, want, 0, 2, opPutRootFH, nfs4OK, opCreate, want}
+		if len(got) < len(wantPrefix) || !slices.Equal(got[:len(wantPrefix)], wantPrefix) {
+			t.Errorf("CREATE %d: reply = %v, want it to start %v", i+1, got, wantPrefix)
+		}
+	}
 }

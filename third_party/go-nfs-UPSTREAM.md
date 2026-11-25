@@ -2,11 +2,11 @@
 
 `third_party/go-nfs` is [willscott/go-nfs](https://github.com/willscott/go-nfs) at commit
 `19d471546678bc0ab58ac2de14b043228a4d2468` (master, 2026-11-24, untagged: NFSv4 support is not in a release yet)
-with the three patches below applied; the patch files sit in that directory too. Tests, examples, CI files,
+with the four patches below applied; the patch files sit in that directory too. Tests, examples, CI files,
 upstream's own docs and the unused `helpers/memfs` package are left out. `go.mod` at the repository root points
 there with a `replace` directive.
 
-Delete `third_party/go-nfs`, this file and the `replace` once upstream releases a version with all three fixes, then
+Delete `third_party/go-nfs`, this file and the `replace` once upstream releases a version with all four fixes, then
 require that version.
 
 ## Updating to a newer upstream commit
@@ -20,7 +20,8 @@ rsync -a --delete --filter='P *.patch' \
   <upstream>/ third_party/go-nfs/
 rm -rf third_party/go-nfs/helpers/memfs
 git apply --directory=third_party/go-nfs \
-  third_party/go-nfs/hidden-system-attrs.patch third_party/go-nfs/rpc-auth.patch third_party/go-nfs/accept-retry.patch
+  third_party/go-nfs/hidden-system-attrs.patch third_party/go-nfs/rpc-auth.patch \
+  third_party/go-nfs/accept-retry.patch third_party/go-nfs/create-exists.patch
 ```
 
 `--directory` is required: run inside `third_party/go-nfs`, `git apply` resolves the patch paths from the
@@ -100,3 +101,24 @@ Upstream pull request text:
 > retries those two errors with the existing backoff and logs each retry, as `net/http` does. With a listener
 > whose `Accept` fails with `EMFILE`, `ENFILE`, `EMFILE`, then `net.ErrClosed`, `Serve` used to return the first
 > error after one call; it now retries three times and returns `net.ErrClosed`. `go test ./...` passes.
+
+## `create-exists.patch`: refuse CREATE of a name that is taken
+
+`nfs4OnCreate` makes a directory with `MkdirAll`, which succeeds when the directory already exists, so a `CREATE`
+of a taken name answered `NFS4_OK`. RFC 7530 (section 16.4) has `CREATE` fail with `NFS4ERR_EXIST` there, and
+go-nfs's own NFSv3 `MKDIR` already answers `NFS3ERR_EXIST`. On a Linux mount (Ubuntu 24.04), `mkdir` of a directory
+the client had not seen since mounting succeeded instead of failing with `EEXIST`, which breaks every program that
+uses `mkdir` as a lock; the macOS client looks the name up first and answered `File exists` with or without the
+patch. The patch checks the name with `Lstat` first, as `OPEN` already does for a guarded create.
+
+Upstream pull request text:
+
+> **nfs4: answer NFS4ERR_EXIST to CREATE of an existing name**
+>
+> `nfs4OnCreate` calls `MkdirAll`, which returns nil for a directory that already exists, so `CREATE` of a taken
+> name succeeds. RFC 7530 section 16.4 requires `NFS4ERR_EXIST`, and NFSv3 `MKDIR` (`nfs_onmkdir.go`) already
+> returns `NFS3ERR_EXIST` for it. A Linux client sends this `CREATE` for `mkdir(2)` of a name it has not looked up:
+> on an Ubuntu 24.04 mount, `mkdir` of a directory created before a remount succeeded, so `mkdir`-based locking
+> stops excluding anyone (the macOS client looks the name up first). This checks the name with `Lstat` before
+> `MkdirAll`, as `nfs4OnOpen` does for `GUARDED4`. A raw COMPOUND of `PUTROOTFH` and `CREATE` sent twice used
+> to answer `NFS4_OK` both times; the second now answers `NFS4ERR_EXIST`. `go test ./...` passes.

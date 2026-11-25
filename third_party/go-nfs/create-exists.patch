@@ -1,0 +1,19 @@
+--- a/nfs4_oncreate.go
++++ b/nfs4_oncreate.go
+@@ -51,8 +51,15 @@
+ 	}
+ 
+ 	childPath := parent.child(req.Name)
++	fullPath := nfs4Join(parent.fs, childPath)
++	// CREATE makes a new object, so a taken name is NFS4ERR_EXIST, as
++	// NFSv3 MKDIR answers NFS3ERR_EXIST; MkdirAll alone accepts an
++	// existing directory. (Changed for davdrive; see ../go-nfs-UPSTREAM.md.)
++	if _, err := parent.fs.Lstat(fullPath); err == nil {
++		return nfs4ErrExist
++	}
+ 	before := parent.changeID()
+-	if err := parent.fs.MkdirAll(nfs4Join(parent.fs, childPath), attrs.attrs.Mode(0777)); err != nil {
++	if err := parent.fs.MkdirAll(fullPath, attrs.attrs.Mode(0777)); err != nil {
+ 		return nfs4StatusFromErr(err)
+ 	}
+ 	after := parent.changeID()
