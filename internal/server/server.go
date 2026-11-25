@@ -42,16 +42,18 @@ const (
 
 // Server is a running daemon.
 type Server struct {
-	mount    *config.Mount
-	vfs      *vfs.VFS
-	nfs      *nfs.Server
-	control  *http.Server
-	port     int
-	started  time.Time
-	stopping atomic.Bool
-	cancel   context.CancelFunc
-	lock     *os.File   // held for the server's lifetime; see lockMount
-	done     chan error // see Done
+	mount     *config.Mount
+	vfs       *vfs.VFS
+	nfs       *nfs.Server
+	nfsLn     net.Listener // see Stop
+	control   *http.Server
+	controlLn net.Listener // see Stop
+	port      int
+	started   time.Time
+	stopping  atomic.Bool
+	cancel    context.CancelFunc
+	lock      *os.File   // held for the server's lifetime; see lockMount
+	done      chan error // see Done
 }
 
 // Start connects to the remote and starts serving it. ctx bounds the
@@ -72,8 +74,7 @@ func Start(ctx context.Context, m *config.Mount, password string) (*Server, erro
 	}
 	s, err := start(ctx, m, password)
 	if err != nil {
-		_ = controlLn.Close()
-		_ = os.Remove(m.SocketPath())
+		_ = controlLn.Close() // unlinks the socket file
 		_ = lock.Close()
 
 		return nil, err
@@ -200,12 +201,18 @@ func (s *Server) Stop(ctx context.Context) {
 	if err := s.nfs.Shutdown(ctx); err != nil {
 		_ = s.nfs.Close()
 	}
+	// Shutdown and Close close only the listeners their Serve goroutines
+	// have taken up. Right after Start those may not have run yet, and
+	// would close the listener after Stop instead: the NFS port would
+	// outlive Stop, and closing the control listener unlinks its socket
+	// path, by then a successor's. Closing both here settles it.
+	_ = s.nfsLn.Close()
 	cancel()
 	s.vfs.WaitForWriters(shutdownWait)
 	s.vfs.Shutdown()
 	s.cancel()
 	_ = s.control.Close()
-	_ = os.Remove(s.mount.SocketPath())
+	_ = s.controlLn.Close()
 	_ = s.lock.Close()
 }
 
@@ -249,6 +256,7 @@ func (s *Server) serveNFS() error {
 	if runtime.GOOS == "linux" {
 		ln = reservedPortListener{ln}
 	}
+	s.nfsLn = ln
 	go func() {
 		if err := s.nfs.Serve(ln); err != nil && !errors.Is(err, nfs.ErrServerClosed) {
 			s.fail(fmt.Errorf("NFS server: %w", err))

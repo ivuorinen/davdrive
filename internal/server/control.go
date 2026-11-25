@@ -89,6 +89,7 @@ func (s *Server) serveControl(ln net.Listener) {
 		_ = json.NewEncoder(w).Encode(s.status())
 	})
 	s.control = &http.Server{Handler: mux, ReadHeaderTimeout: 5 * time.Second}
+	s.controlLn = ln
 	go func() {
 		if err := s.control.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			s.fail(fmt.Errorf("control socket: %w", err))
