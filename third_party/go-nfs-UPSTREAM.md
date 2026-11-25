@@ -2,11 +2,11 @@
 
 `third_party/go-nfs` is [willscott/go-nfs](https://github.com/willscott/go-nfs) at commit
 `19d471546678bc0ab58ac2de14b043228a4d2468` (master, 2026-11-24, untagged: NFSv4 support is not in a release yet)
-with the two patches below applied; the patch files sit in that directory too. Tests, examples, CI files,
+with the three patches below applied; the patch files sit in that directory too. Tests, examples, CI files,
 upstream's own docs and the unused `helpers/memfs` package are left out. `go.mod` at the repository root points
 there with a `replace` directive.
 
-Delete `third_party/go-nfs`, this file and the `replace` once upstream releases a version with both fixes, then
+Delete `third_party/go-nfs`, this file and the `replace` once upstream releases a version with all three fixes, then
 require that version.
 
 ## Updating to a newer upstream commit
@@ -19,12 +19,13 @@ rsync -a --delete --filter='P *.patch' \
   --exclude README.md --exclude CONTRIBUTING.md --exclude SECURITY.md --exclude helpers/memfs \
   <upstream>/ third_party/go-nfs/
 rm -rf third_party/go-nfs/helpers/memfs
-git apply --directory=third_party/go-nfs third_party/go-nfs/hidden-system-attrs.patch third_party/go-nfs/rpc-auth.patch
+git apply --directory=third_party/go-nfs \
+  third_party/go-nfs/hidden-system-attrs.patch third_party/go-nfs/rpc-auth.patch third_party/go-nfs/accept-retry.patch
 ```
 
 `--directory` is required: run inside `third_party/go-nfs`, `git apply` resolves the patch paths from the
-repository root and silently skips them. Run upstream's tests on `<upstream>` with both patches applied before
-copying.
+repository root and silently skips them. Run upstream's tests on `<upstream>` with the patches applied, in that
+order, before copying.
 
 Each modified file carries a `(Changed for davdrive; see ../go-nfs-UPSTREAM.md.)` comment, as the Apache-2.0
 licence requires. Leave those lines out of upstream pull requests.
@@ -79,3 +80,23 @@ Upstream pull request text:
 > `reject_stat`, which RFC 5531 defines as `RPC_MISMATCH` = 0 or `AUTH_ERROR` = 1. And
 > `AuthError.MarshalBinary` / `RPCMismatchError.MarshalBinary` used `binary.LittleEndian`, so clients decoded
 > `AUTH_TOOWEAK` as `0x05000000` and version ranges byte-swapped. Both are fixed; `go test ./...` passes.
+
+## `accept-retry.patch`: keep serving after running out of file descriptors
+
+`Serve` retries a failed `Accept` only when the error is a timeout, which a listener without a deadline never
+returns. Running out of file descriptors (`EMFILE`, `ENFILE`) ends `Serve` instead, so a moment of descriptor
+pressure stops the NFS server for good, and davdrive has to unmount and stop. Upstream commit `3e38b0a` ("use the
+newer replacement for `Temporary` errors", 2022) swapped the deprecated `net.Error.Temporary()` for `Timeout()`,
+which dropped exactly these errors. The patch retries `EMFILE` and `ENFILE` too, with the existing backoff (5 ms,
+doubling up to 1 s), as `net/http`'s `Serve` does, and logs each retry at warning level.
+
+Upstream pull request text:
+
+> **server: keep accepting after running out of file descriptors**
+>
+> Since 3e38b0a replaced `ne.Temporary()` with `ne.Timeout()` in `Serve`, only timeouts are retried. A listener
+> without a deadline never times out, and the errors `Temporary()` covered, `EMFILE` and `ENFILE`, now end
+> `Serve`: one burst of descriptor pressure shuts the server down for good, while `net/http` waits it out. This
+> retries those two errors with the existing backoff and logs each retry, as `net/http` does. With a listener
+> whose `Accept` fails with `EMFILE`, `ENFILE`, `EMFILE`, then `net.ErrClosed`, `Serve` used to return the first
+> error after one call; it now retries three times and returns `net.ErrClosed`. `go test ./...` passes.

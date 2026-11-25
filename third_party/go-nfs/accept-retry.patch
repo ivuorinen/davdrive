@@ -1,0 +1,57 @@
+--- a/server.go
++++ b/server.go
+@@ -8,6 +8,7 @@
+ 	"net"
+ 	"sync"
+ 	"sync/atomic"
++	"syscall"
+ 	"time"
+ )
+ 
+@@ -106,8 +107,10 @@
+ // Serve accepts connections on l and serves each one on its own goroutine.
+ //
+ // Serve returns only once every connection it accepted has finished. After
+-// Shutdown or Close it returns ErrServerClosed. If l fails some other way,
+-// Serve closes the connections it accepted and returns the error.
++// Shutdown or Close it returns ErrServerClosed. Accept errors that pass,
++// timeouts and running out of file descriptors, are retried with a growing
++// delay. If l fails some other way, Serve closes the connections it
++// accepted and returns the error.
+ //
+ // The Server's Context is the parent of the context each request is
+ // handled with.
+@@ -142,13 +145,14 @@
+ 				conns.Wait()
+ 				return ErrServerClosed
+ 			}
+-			if ne, ok := err.(net.Error); ok && ne.Timeout() {
++			if retryableAcceptError(err) {
+ 				if tempDelay == 0 {
+ 					tempDelay = 5 * time.Millisecond
+ 				} else {
+ 					tempDelay *= 2
+ 				}
+ 				tempDelay = min(tempDelay, 1*time.Second)
++				Log.Warnf("accept error: %v; retrying in %v", err, tempDelay)
+ 				time.Sleep(tempDelay)
+ 				continue
+ 			}
+@@ -173,6 +177,17 @@
+ 	}
+ }
+ 
++// retryableAcceptError reports whether a later Accept can succeed after
++// err: a timeout, or running out of file descriptors, which passes as
++// connections close. net/http's Serve retries the same errors. Any other
++// error ends Serve. (Changed for davdrive; see ../go-nfs-UPSTREAM.md.)
++func retryableAcceptError(err error) bool {
++	if ne, ok := err.(net.Error); ok && ne.Timeout() {
++		return true
++	}
++	return errors.Is(err, syscall.EMFILE) || errors.Is(err, syscall.ENFILE)
++}
++
+ // Shutdown stops the server gracefully. It closes the listeners, lets each
+ // connection finish and answer the requests it is already handling, and
+ // then closes it. Shutdown returns when every connection has closed.
