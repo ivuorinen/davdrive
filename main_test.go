@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"net"
 	"os"
 	"path/filepath"
 	"runtime/debug"
@@ -288,77 +287,49 @@ func TestServeUntilStoppedWhileMounted(t *testing.T) {
 	}
 }
 
-// TestServeUntilStoppedServerFailure makes the NFS listener fail, by
-// running out of file descriptors while a client connects, and expects
-// the server to stop even though the share cannot be unmounted: a failed
-// server can no longer serve the mount.
+// failedServer is a server that has already failed: Done delivers err.
+type failedServer struct {
+	done    chan error
+	stopped chan struct{}
+}
+
+func newFailedServer(err error) *failedServer {
+	s := &failedServer{done: make(chan error, 1), stopped: make(chan struct{})}
+	s.done <- err
+
+	return s
+}
+
+func (s *failedServer) Done() <-chan error { return s.done }
+
+func (s *failedServer) Stop(context.Context) { close(s.stopped) }
+
+// TestServeUntilStoppedServerFailure expects a failed server to be
+// stopped even though the share cannot be unmounted: it can no longer
+// serve the mount either way.
 func TestServeUntilStoppedServerFailure(t *testing.T) {
 	e := newEnv(t)
 	logs := captureLogs(t)
 	m := e.mount(t, "k")
-	srv := startServer(t, m)
 	e.mounts.set(m.Mountpoint)
 	errBusy := errors.New("resource busy")
 	e.mounts.queue(&e.mounts.unmountErrs, errBusy, errBusy)
+	srv := newFailedServer(errors.New("NFS server: listener gone"))
 
-	done := make(chan struct{})
-	go func() {
-		serveUntilStopped(t.Context(), srv, m, false)
-		close(done)
-	}()
+	serveUntilStopped(t.Context(), srv, m, true)
 
-	failAccept(t, srv.Port(), func() bool { return logs.contains("Server failed") })
-
-	<-done
-	if !logs.contains("too many open files") {
-		t.Errorf("log = %q, want the accept failure", logs)
+	select {
+	case <-srv.stopped:
+	default:
+		t.Fatal("the failed server was not stopped")
 	}
-	if !notRunning(t.Context(), m) {
-		t.Error("the failed server still answers")
+	if want := "Server failed: NFS server: listener gone; unmounting and stopping"; !logs.contains(want) {
+		t.Errorf("log = %q, want %q", logs, want)
 	}
-}
-
-// failAccept connects to port until failed reports the server's Accept
-// has run out of descriptors. Earlier tests' goroutines can free one at
-// any moment, letting a single connection be accepted instead, so every
-// connection is held to use a descriptor up. When the dialer itself runs
-// out, a spare frees exactly one, which the next connection takes while
-// the server still has none to accept it with.
-func failAccept(t *testing.T, port int, failed func() bool) {
-	t.Helper()
-	spares := make([]*os.File, 8)
-	for i := range spares {
-		f, err := os.Open(os.DevNull)
-		if err != nil {
-			t.Fatal(err)
-		}
-		spares[i] = f
-	}
-	release := exhaustFDs(t, 0)
-	var conns []net.Conn
-	addr := "127.0.0.1:" + strconv.Itoa(port)
-	waitFor(t, "the server to fail", func() bool {
-		if failed() {
-			return true
-		}
-		var d net.Dialer
-		c, err := d.DialContext(t.Context(), "tcp", addr)
-		switch {
-		case err == nil:
-			conns = append(conns, c)
-		case errors.Is(err, syscall.EMFILE) && len(spares) > 0:
-			_ = spares[0].Close()
-			spares = spares[1:]
-		}
-
-		return false
-	})
-	release()
-	for _, c := range conns {
-		_ = c.Close()
-	}
-	for _, f := range spares {
-		_ = f.Close()
+	_, unmounts := e.mounts.calls()
+	checkUnmounts(t, unmounts, m.Mountpoint, []bool{false, true})
+	if !e.mounts.isMountedAt(m.Mountpoint) {
+		t.Error("the fake mount table lost a mount whose unmount failed")
 	}
 }
 

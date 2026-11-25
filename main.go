@@ -149,10 +149,17 @@ func unmountIfMounted(m *config.Mount, interactive bool) (unmounted bool) {
 	return err == nil && !mounted
 }
 
+// runningServer is what serveUntilStopped needs of a server: *server.Server,
+// or a fake whose failure a test controls.
+type runningServer interface {
+	Done() <-chan error
+	Stop(ctx context.Context)
+}
+
 // waitForStop blocks until SIGINT or SIGTERM arrives or the server fails,
 // and returns the failure, nil for a signal. Default signal handling is
 // back in place when it returns, so a second signal quits at once.
-func waitForStop(srv *server.Server) error {
+func waitForStop(srv runningServer) error {
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
 	defer signal.Stop(sig)
@@ -170,7 +177,7 @@ func waitForStop(srv *server.Server) error {
 // the server running: stopping it would strand a hard NFS mount that
 // blocks every process touching it until root intervenes. A failed server
 // stops either way, since it can no longer serve the mount.
-func serveUntilStopped(ctx context.Context, srv *server.Server, m *config.Mount, interactive bool) {
+func serveUntilStopped(ctx context.Context, srv runningServer, m *config.Mount, interactive bool) {
 	for {
 		failure := waitForStop(srv)
 		if failure != nil {
