@@ -27,12 +27,13 @@
 is the same gate as CI:
 
 ```sh
-mise install         # golangci-lint, govulncheck, goreleaser, svu at the pinned versions
+mise install         # golangci-lint, govulncheck, goreleaser, svu, gobco at the pinned versions
 mise run all         # lint, test-race, vuln, build: the CI gates
 
 mise run build       # ./davdrive for this platform
 mise run test        # includes TestConcurrentWrites, about 20 s
 mise run test-short  # skips it, for a quick loop
+mise run test-cov    # statement coverage, then each branch the tests never took (gobco)
 mise run lint        # golangci-lint for darwin and linux, reporting only
 mise run vuln        # govulncheck: reachable vulnerabilities only
 

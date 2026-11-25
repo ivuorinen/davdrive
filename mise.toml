@@ -18,6 +18,7 @@ golangci-lint = "2.15.0"
 goreleaser = "2.20.2"
 svu = "3.4.4"
 "go:golang.org/x/vuln/cmd/govulncheck" = "1.9.0"
+"go:github.com/rillig/gobco" = "1.3.4"
 
 [tasks.build]
 description = "Build for the current platform"
@@ -34,6 +35,28 @@ run = "go test -short ./..."
 [tasks.test-race]
 description = "Run tests with the race detector"
 run = "go test -race ./..."
+
+# `go test -cover` gives statement coverage; gobco -branch adds branch
+# coverage, listing each if, for and switch branch the tests never took.
+# gobco takes one package per run. It also type-checks every file in a
+# directory regardless of GOOS, so mount_darwin.go and mount_linux.go clash:
+# internal/platform is measured through platform_unix.go alone, the only file
+# its tests reach. Paths are passed relative so findings print relative.
+[tasks.test-cov]
+description = "Run tests with statement coverage, then branch coverage with gobco"
+run = '''
+go test -cover ./...
+module=$(go list -m)
+for pkg in $(go list ./...); do
+  target=".${pkg#"$module"}"
+  if [ "$target" = ./internal/platform ]; then
+    target=./internal/platform/platform_unix.go
+  fi
+  echo
+  echo "== $pkg"
+  gobco -branch "$target"
+done
+'''
 
 # .golangci.yml sets fix: true for local runs; a gate must report, not fix, or
 # it passes on code it just rewrote. internal/platform differs per OS, so both
