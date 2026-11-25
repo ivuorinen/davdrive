@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"net"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -41,6 +42,7 @@ func TestOwnerOnly(t *testing.T) {
 		{"AUTH_NULL compound", 1, 0, nil, false},
 		{"AUTH_NULL ping", rpcProcNull, 0, nil, true},
 		{"truncated body", 1, authSys, authSysBody("mac", owner, 20)[:10], false},
+		{"credential shorter than its header", 1, authSys, make([]byte, 4), false},
 		{"oversized name", 1, authSys, binary.BigEndian.AppendUint32(make([]byte, 4), 4096), false},
 	} {
 		if got := allow(tc.proc, tc.flavor, tc.body); got != tc.want {
@@ -80,4 +82,54 @@ func TestReservedPortListenerRefusesEphemeralPorts(t *testing.T) {
 		t.Fatal("connection from an unreserved port was accepted")
 	default:
 	}
+}
+
+// TestReservedPortListenerAcceptsReservedPorts connects from a port below
+// 1024, as a kernel NFS client does, and expects the connection handed on.
+// macOS lets any user bind the wildcard address there; on Linux only root
+// can, so elsewhere the test skips when no reserved port can be bound.
+func TestReservedPortListenerAcceptsReservedPorts(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	l := reservedPortListener{ln}
+	defer func() { _ = l.Close() }()
+	accepted := make(chan net.Conn, 1)
+	go func() {
+		if c, err := l.Accept(); err == nil {
+			accepted <- c
+		}
+	}()
+
+	c := dialFromReservedPort(t, ln.Addr().String())
+	defer func() { _ = c.Close() }()
+	select {
+	case got := <-accepted:
+		defer func() { _ = got.Close() }()
+		if got.RemoteAddr().String() != c.LocalAddr().String() {
+			t.Fatalf("accepted %v, want the connection from %v", got.RemoteAddr(), c.LocalAddr())
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("connection from a reserved port was not accepted")
+	}
+}
+
+// dialFromReservedPort connects to addr from the first free port below
+// 1024, skipping the test when this user may bind none.
+func dialFromReservedPort(t *testing.T, addr string) net.Conn {
+	t.Helper()
+	for port := reservedPorts - 1; port >= 600; port-- {
+		d := net.Dialer{LocalAddr: &net.TCPAddr{Port: port}}
+		c, err := d.DialContext(t.Context(), "tcp", addr)
+		if err == nil {
+			return c
+		}
+		if errors.Is(err, syscall.EACCES) || errors.Is(err, syscall.EPERM) {
+			t.Skipf("binding reserved port %d: %v", port, err)
+		}
+	}
+	t.Skip("no free reserved port to dial from")
+
+	return nil
 }
