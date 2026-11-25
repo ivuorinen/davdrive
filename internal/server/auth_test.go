@@ -37,7 +37,7 @@ func TestOwnerOnly(t *testing.T) {
 		{"owner", 1, authSys, authSysBody("mac", owner, 20), true},
 		{"root", 1, authSys, authSysBody("mac", 0, 0), true},
 		{"other user", 1, authSys, authSysBody("mac", 502, 20), false},
-		{"name padding is skipped", 1, authSys, authSysBody("hostname", owner, 20), true},
+		{"name length a multiple of 4", 1, authSys, authSysBody("hostname", owner, 20), true},
 		{"unpadded name length", 1, authSys, authSysBody("abcde", 502, 20), false},
 		{"AUTH_NULL compound", 1, 0, nil, false},
 		{"AUTH_NULL ping", rpcProcNull, 0, nil, true},

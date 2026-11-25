@@ -127,8 +127,8 @@ func checkErr(t *testing.T, err error, want string) {
 	}
 }
 
-// refusal sets up a share that mount must refuse before it starts a
-// server, and returns the error it must report.
+// refusal sets up a share that mount must refuse, and returns the error it
+// must report.
 type refusal struct {
 	name  string
 	setup func(t *testing.T, e *testEnv) string

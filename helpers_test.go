@@ -43,7 +43,7 @@ const waitTimeout = 30 * time.Second
 // unmountedK is what unmount prints once share k is fully unmounted.
 const unmountedK = "Unmounted k\n"
 
-// nameCommands are the commands that take a share name.
+// nameCommands are the user-facing commands that take a share name.
 var nameCommands = []string{"mount", "unmount", "status"}
 
 // share is one [mounts.<name>] table of a test config file.
@@ -381,8 +381,8 @@ func statusReply(st server.Status) http.HandlerFunc {
 	}
 }
 
-// brokenReply answers every request with a server error, as a daemon that
-// is shutting down or wedged can.
+// brokenReply answers every request with a server error: a socket that
+// answers, but not as a davdrive daemon does.
 func brokenReply(w http.ResponseWriter, _ *http.Request) {
 	http.Error(w, "broken", http.StatusInternalServerError)
 }
@@ -509,8 +509,10 @@ func (c *logCapture) contains(s string) bool {
 	return false
 }
 
-// isolateLogging restores rclone's and go-nfs's global logging setup when
-// the test ends, since setupLogging changes it process-wide.
+// isolateLogging restores rclone's options and level and go-nfs's logger
+// when the test ends, since setupLogging changes them process-wide. The
+// handler's writer and format stay as setupLogging left them; captureLogs
+// resets the writer.
 func isolateLogging(t *testing.T) {
 	t.Helper()
 	opt := rlog.Opt

@@ -36,7 +36,7 @@ func acceptError(errno syscall.Errno) error {
 
 // TestNFSAcceptRetries guards accept-retry.patch: running out of file
 // descriptors is waited out, as net/http does, instead of ending the NFS
-// server for good. Any other Accept error still ends it.
+// server for good. Any other Accept error, except a timeout, still ends it.
 func TestNFSAcceptRetries(t *testing.T) {
 	exhausted := &failingListener{errs: []error{
 		acceptError(syscall.EMFILE), acceptError(syscall.ENFILE), acceptError(syscall.EMFILE),

@@ -30,8 +30,9 @@ func serveUnix(t *testing.T, h http.HandlerFunc) string {
 	return path
 }
 
-// TestQueryErrors covers a socket that answers but not with a status: each
-// must surface as an error, never as a status or as ErrNotRunning.
+// TestQueryErrors covers a socket that answers but not with a status, and a
+// request that cannot be made: each must surface as an error, never as a
+// status or as ErrNotRunning.
 func TestQueryErrors(t *testing.T) {
 	broken := serveUnix(t, func(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, "boom", http.StatusInternalServerError)

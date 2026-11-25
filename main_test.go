@@ -102,7 +102,7 @@ func TestCompleteNames(t *testing.T) {
 }
 
 // TestCompletionThroughCobra checks the names reach the shell completion
-// protocol of every command that takes one.
+// protocol of every user-facing command that takes one.
 func TestCompletionThroughCobra(t *testing.T) {
 	e := newEnv(t)
 	e.writeConfig(t, e.share("k"), e.share("a"))

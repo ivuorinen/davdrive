@@ -89,8 +89,8 @@ func dialNFS(t *testing.T, port int) net.Conn {
 
 // TestNFSServesOwnerOnly speaks RPC to a running server: other users'
 // calls are refused before they reach the share, the owner's are served.
-// On Linux the reserved-port rule refuses this unprivileged test program
-// outright.
+// On Linux the reserved-port rule refuses this test's connection outright:
+// it comes from an unreserved port.
 func TestNFSServesOwnerOnly(t *testing.T) {
 	isolate(t)
 	dav := newDAV(t, davOptions{})

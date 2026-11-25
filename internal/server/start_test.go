@@ -486,7 +486,7 @@ func TestHandlerChange(t *testing.T) {
 			if got := s.nfs.Change(nil) != nil; got != tc.writable {
 				t.Errorf("Change offered = %v, want %v", got, tc.writable)
 			}
-			// Without a disk cache there is nothing to count.
+			// A fresh server has nothing cached or queued yet.
 			st, err := Query(t.Context(), m.SocketPath())
 			if err != nil {
 				t.Fatalf("Query: %v", err)
