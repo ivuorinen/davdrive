@@ -59,7 +59,7 @@ func unmount(ctx context.Context, m *config.Mount, force bool) error {
 		return nil
 	}
 	if s.mounted {
-		if err := platform.Unmount(platform.Canonical(m.Mountpoint), force, true); err != nil {
+		if err := unmountNFS(platform.Canonical(m.Mountpoint), force, true); err != nil {
 			if force {
 				return err
 			}

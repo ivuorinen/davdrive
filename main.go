@@ -33,6 +33,13 @@ type app struct {
 	verbose    int
 }
 
+// The CLI reaches the mount table through these, so its tests can swap in a fake.
+var (
+	mountNFS   = platform.Mount
+	unmountNFS = platform.Unmount
+	isMounted  = platform.IsMounted
+)
+
 func newRootCmd() *cobra.Command {
 	a := &app{}
 	root := &cobra.Command{
@@ -102,7 +109,7 @@ type mountState struct {
 // state reports whether m's mountpoint is mounted and what its server, if
 // any, says. Only a failure to read the mount table is an error.
 func state(ctx context.Context, m *config.Mount) (mountState, error) {
-	mounted, err := platform.IsMounted(platform.Canonical(m.Mountpoint))
+	mounted, err := isMounted(platform.Canonical(m.Mountpoint))
 	if err != nil {
 		return mountState{}, err
 	}
@@ -122,7 +129,7 @@ func state(ctx context.Context, m *config.Mount) (mountState, error) {
 // a live mount on a guess.
 func unmountIfMounted(m *config.Mount, interactive bool) (unmounted bool) {
 	mp := platform.Canonical(m.Mountpoint)
-	mounted, err := platform.IsMounted(mp)
+	mounted, err := isMounted(mp)
 	if err != nil {
 		fs.Errorf(nil, "Reading the mount table: %v", err)
 
@@ -131,13 +138,13 @@ func unmountIfMounted(m *config.Mount, interactive bool) (unmounted bool) {
 	if !mounted {
 		return true
 	}
-	if err := platform.Unmount(mp, false, interactive); err != nil {
+	if err := unmountNFS(mp, false, interactive); err != nil {
 		fs.Errorf(nil, "Unmounting %s: %v; forcing", mp, err)
-		if err := platform.Unmount(mp, true, interactive); err != nil {
+		if err := unmountNFS(mp, true, interactive); err != nil {
 			fs.Errorf(nil, "Forced unmount of %s failed: %v", mp, err)
 		}
 	}
-	mounted, err = platform.IsMounted(mp)
+	mounted, err = isMounted(mp)
 
 	return err == nil && !mounted
 }

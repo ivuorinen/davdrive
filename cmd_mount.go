@@ -114,7 +114,7 @@ func resume(m *config.Mount, s mountState) (handled bool, err error) {
 }
 
 func attach(m *config.Mount, port int) error {
-	if err := platform.Mount(port, m.Mountpoint, m.MountOptions); err != nil {
+	if err := mountNFS(port, m.Mountpoint, m.MountOptions); err != nil {
 		return err
 	}
 	fmt.Printf("Mounted %s at %s (log: %s)\n", m.Name, m.Mountpoint, m.LogPath())
@@ -221,25 +221,31 @@ func (a *app) daemonCmd() *cobra.Command {
 		Hidden: true,
 		Args:   cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			ready := os.NewFile(readyFD, "ready")
-			report := func(format string, v ...any) {
-				_, _ = fmt.Fprintf(ready, format+"\n", v...)
-				_ = ready.Close()
-			}
-			srv, m, err := a.startDaemon(cmd.Context(), args)
-			if err != nil {
-				report("error: %v", err)
-
-				return err
-			}
-			report("ok %d", srv.Port())
-			fs.Logf(nil, "Serving %s for %s on 127.0.0.1:%d", m.URL, m.Mountpoint, srv.Port())
-			serveUntilStopped(cmd.Context(), srv, m, false)
-			fs.Logf(nil, "Stopped")
-
-			return nil
+			return a.runDaemon(cmd.Context(), args, os.NewFile(readyFD, "ready"))
 		},
 	}
+}
+
+// runDaemon starts the server named in args, reports the start-up on ready
+// ("ok <port>" or "error: <message>", then closes it) and serves until a
+// stop request can be honored.
+func (a *app) runDaemon(ctx context.Context, args []string, ready io.WriteCloser) error {
+	report := func(format string, v ...any) {
+		_, _ = fmt.Fprintf(ready, format+"\n", v...)
+		_ = ready.Close()
+	}
+	srv, m, err := a.startDaemon(ctx, args)
+	if err != nil {
+		report("error: %v", err)
+
+		return err
+	}
+	report("ok %d", srv.Port())
+	fs.Logf(nil, "Serving %s for %s on 127.0.0.1:%d", m.URL, m.Mountpoint, srv.Port())
+	serveUntilStopped(ctx, srv, m, false)
+	fs.Logf(nil, "Stopped")
+
+	return nil
 }
 
 func (a *app) startDaemon(ctx context.Context, args []string) (*server.Server, *config.Mount, error) {
@@ -291,7 +297,7 @@ func (a *app) mountForeground(ctx context.Context, m *config.Mount) error {
 	if err != nil {
 		return err
 	}
-	if err := platform.Mount(srv.Port(), m.Mountpoint, m.MountOptions); err != nil {
+	if err := mountNFS(srv.Port(), m.Mountpoint, m.MountOptions); err != nil {
 		srv.Stop(ctx)
 
 		return err
