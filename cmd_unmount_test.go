@@ -30,15 +30,23 @@ func TestUnmount(t *testing.T) {
 	}{
 		{name: "nothing to do", wantOut: "k is not mounted\n"},
 		{name: "stale mount cleared", mounted: true, wantOut: unmountedK, wantForce: []bool{false}},
-		{name: "stale mount cleared by force", args: []string{"--force"}, mounted: true, wantOut: unmountedK,
-			wantForce: []bool{true}},
-		{name: "busy", mounted: true, unmountErr: errBusy, wantForce: []bool{false},
-			wantErr: errBusy.Error() + "\nclose the files open under "},
-		{name: "busy, forced", args: []string{"--force"}, mounted: true, unmountErr: errBusy,
-			wantForce: []bool{true}, wantErr: errBusy.Error()},
+		{
+			name: "stale mount cleared by force", args: []string{"--force"}, mounted: true, wantOut: unmountedK,
+			wantForce: []bool{true},
+		},
+		{
+			name: "busy", mounted: true, unmountErr: errBusy, wantForce: []bool{false},
+			wantErr: errBusy.Error() + "\nclose the files open under ",
+		},
+		{
+			name: "busy, forced", args: []string{"--force"}, mounted: true, unmountErr: errBusy,
+			wantForce: []bool{true}, wantErr: errBusy.Error(),
+		},
 		{name: "server not answering", broken: true, wantErr: notAnswering},
-		{name: "server does not answer, mounted", mounted: true, broken: true, wantErr: notAnswering,
-			wantForce: []bool{false}},
+		{
+			name: "server does not answer, mounted", mounted: true, broken: true, wantErr: notAnswering,
+			wantForce: []bool{false},
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			e := newEnv(t)
