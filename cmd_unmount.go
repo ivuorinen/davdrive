@@ -42,8 +42,8 @@ server finishes in the background.`,
 }
 
 // queryFailureLimit is how many status queries in a row may fail before
-// stopServer gives up waiting. The control socket answers between uploads,
-// so a run of failures means the server is stuck, not busy.
+// stopServer gives up waiting. The control socket keeps answering while
+// uploads run, so a run of failures means the server is stuck, not busy.
 const queryFailureLimit = 10
 
 // unmount clears m's mount even when its server does not answer: that is
@@ -101,7 +101,9 @@ func stopServer(ctx context.Context, m *config.Mount, pid int) error {
 
 // waitForExit polls the control socket until the server is gone,
 // reporting pending uploads meanwhile. Ctrl-C (ctx done) only stops the
-// waiting; the server finishes in the background.
+// waiting; the server finishes in the background. After queryFailureLimit
+// failed queries in a row it gives up and reports the server as not
+// answering.
 func waitForExit(ctx context.Context, m *config.Mount) error {
 	tick := time.NewTicker(500 * time.Millisecond)
 	defer tick.Stop()
@@ -132,8 +134,8 @@ func waitForExit(ctx context.Context, m *config.Mount) error {
 	}
 }
 
-// reportPending prints the pending upload count when it changed since
-// last, and returns the count last printed.
+// reportPending prints the pending upload count when it changed to a
+// non-zero value since last, and returns the count last printed.
 func reportPending(st *server.Status, last int) int {
 	pending := st.UploadsInProgress + st.UploadsQueued
 	if pending == 0 || pending == last {

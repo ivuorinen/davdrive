@@ -213,7 +213,8 @@ func (f *FS) Join(elem ...string) string { return path.Join(elem...) }
 func (f *FS) TempFile(string, string) (billy.File, error) { return nil, billy.ErrNotSupported }
 
 // MkdirAll creates name and any missing parents. A file in the way is
-// os.ErrExist: NFSv4 CREATE relies on this to refuse a taken name.
+// os.ErrExist, which NFSv4 CREATE returns as NFS4ERR_EXIST; an existing
+// directory is not an error.
 func (f *FS) MkdirAll(name string, perm os.FileMode) error {
 	if IsSidecar(name) {
 		return os.ErrPermission

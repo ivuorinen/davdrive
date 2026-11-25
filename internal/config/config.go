@@ -23,7 +23,8 @@ import (
 const (
 	appName = "davdrive"
 
-	// EnvConfig overrides the config file path.
+	// EnvConfig replaces the default config file path; --config still
+	// overrides it.
 	EnvConfig = "DAVDRIVE_CONFIG"
 	// EnvPassword names the environment variable that supplies the WebDAV
 	// password without a prompt or command. It is a variable name, not a
@@ -61,7 +62,7 @@ func DefaultPath() string {
 	return filepath.Join(xdgDir("XDG_CONFIG_HOME", ".config"), appName, "config.toml")
 }
 
-// StateDir holds the control sockets and logs.
+// StateDir holds the control sockets, lock files and logs.
 func StateDir() string {
 	return filepath.Join(xdgDir("XDG_STATE_HOME", filepath.Join(".local", "state")), appName)
 }
@@ -90,7 +91,8 @@ func CheckDirs() error {
 
 // xdgDir follows the XDG base directory spec on every platform: a relative
 // value is invalid and falls back to the default under $HOME. Without a
-// home directory the result is relative, which CheckDirs rejects.
+// home directory the result is relative; CheckDirs rejects that for the
+// state and cache directories.
 func xdgDir(env, fallback string) string {
 	if dir := os.Getenv(env); filepath.IsAbs(dir) {
 		return dir
@@ -235,7 +237,8 @@ func (m *Mount) Password(ctx context.Context) (string, error) {
 	}
 	if m.PasswordCommand != "" {
 		// password_command is the user's own shell command from their own
-		// config file, run as them, exactly like rclone's --password-command.
+		// config file, run as them through /bin/sh, as trusted as rclone's
+		// --password-command.
 		cmd := exec.CommandContext(ctx, "/bin/sh", "-c", m.PasswordCommand) //nolint:gosec // G204: see above
 		cmd.Stdin = os.Stdin
 		cmd.Stderr = os.Stderr

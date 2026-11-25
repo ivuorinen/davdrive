@@ -146,8 +146,8 @@ func (a *app) spawnDaemon(m *config.Mount, password string) (*os.Process, int, e
 	if err := os.MkdirAll(config.StateDir(), 0o700); err != nil {
 		return nil, 0, err
 	}
-	// Until its own logging starts, the daemon's stderr (a panic, say) goes
-	// to the log file too.
+	// The daemon's stderr (a panic, say) goes to the log file too, for its
+	// whole run: rclone's rotated log does not redirect stderr.
 	logFile, err := os.OpenFile(m.LogPath(), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
 	if err != nil {
 		return nil, 0, err
@@ -195,8 +195,8 @@ func (a *app) spawnDaemon(m *config.Mount, password string) (*os.Process, int, e
 
 // parseReady interprets what the daemon wrote on the ready pipe before
 // closing it: "ok <port>" or "error: <message>". Nothing at all means it
-// died before reporting. logPath goes into the errors so the user knows
-// where the daemon's own account of the failure is.
+// died before reporting. The timeout and early-exit errors name logPath,
+// so the user knows where the daemon's own account of the failure is.
 func parseReady(out []byte, readErr error, logPath string) (int, error) {
 	reply := strings.TrimSpace(string(out))
 	if p, ok := strings.CutPrefix(reply, "ok "); ok {

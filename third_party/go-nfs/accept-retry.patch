@@ -43,7 +43,7 @@
  
 +// retryableAcceptError reports whether a later Accept can succeed after
 +// err: a timeout, or running out of file descriptors, which passes as
-+// connections close. net/http's Serve retries the same errors. Any other
++// connections close. net/http's Serve retries these too. Any other
 +// error ends Serve. (Changed for davdrive; see ../go-nfs-UPSTREAM.md.)
 +func retryableAcceptError(err error) bool {
 +	if ne, ok := err.(net.Error); ok && ne.Timeout() {

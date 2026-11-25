@@ -29,7 +29,8 @@ const (
 // user could mount the port and read and write this user's share. The
 // kernel NFS client sends AUTH_SYS with the uid of the process making each
 // access, and root for some housekeeping calls, so uid and 0 are admitted
-// and every other uid and flavor is refused.
+// and every other uid and flavor is refused, except for the NULL
+// procedure, a ping that touches no state.
 //
 // AUTH_SYS is a claim, not a proof: a local program speaking RPC itself
 // can put any uid in it. On Linux the reserved-port rule

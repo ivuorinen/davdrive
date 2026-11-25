@@ -131,8 +131,8 @@ func state(ctx context.Context, m *config.Mount) (mountState, error) {
 }
 
 // unmountIfMounted unmounts m before its server stops: once the server has
-// stopped, the mount would hang every process that touches it. A busy
-// mount is forced, since the server is going away either way. It reports
+// stopped, the mount would hang every process that touches it. A failed
+// unmount is retried forced, since the server is about to stop. It reports
 // whether the mountpoint is unmounted afterwards; a mount table that
 // cannot be read counts as still mounted, so nobody stops the server under
 // a live mount on a guess.

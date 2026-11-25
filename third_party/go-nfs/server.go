@@ -37,8 +37,8 @@ type Server struct {
 	// stopped, since the clients holding them are gone with it.
 	NFSv4Locker ByteRangeLocker
 
-	// Authorize, when set, is asked about every call before it is
-	// dispatched, with the procedure number and the call's credential
+	// Authorize, when set, is asked about every call that has a handler,
+	// before dispatch, with the procedure number and the call's credential
 	// (flavor and opaque body, RFC 5531 section 8.2). A false result
 	// answers the call with MSG_DENIED / AUTH_ERROR (AUTH_TOOWEAK) and runs
 	// no handler. Nil accepts every call. (Changed for davdrive; see
@@ -179,7 +179,7 @@ func (s *Server) Serve(l net.Listener) error {
 
 // retryableAcceptError reports whether a later Accept can succeed after
 // err: a timeout, or running out of file descriptors, which passes as
-// connections close. net/http's Serve retries the same errors. Any other
+// connections close. net/http's Serve retries these too. Any other
 // error ends Serve. (Changed for davdrive; see ../go-nfs-UPSTREAM.md.)
 func retryableAcceptError(err error) bool {
 	if ne, ok := err.(net.Error); ok && ne.Timeout() {

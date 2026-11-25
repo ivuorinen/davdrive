@@ -165,9 +165,10 @@ func knownVFSOption(name string) bool {
 	return false
 }
 
-// newRemote builds the webdav backend from the mount alone, never from an
-// rclone config file. kDrive is a plain WebDAV server: vendor "other", as
-// in Infomaniak's rclone guides.
+// newRemote builds the webdav backend from the mount, never from an rclone
+// config file; options the mount does not set can still come from
+// RCLONE_WEBDAV_* variables. kDrive is a plain WebDAV server: vendor
+// "other", as in Infomaniak's rclone guides.
 func newRemote(ctx context.Context, m *config.Mount, password string) (fs.Fs, error) {
 	ri, err := fs.Find("webdav")
 	if err != nil {

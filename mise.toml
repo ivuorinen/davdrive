@@ -40,8 +40,9 @@ run = "go test -race ./..."
 # coverage, listing each if, for and switch branch the tests never took.
 # gobco takes one package per run. It also type-checks every file in a
 # directory regardless of GOOS, so mount_darwin.go and mount_linux.go clash:
-# internal/platform is measured through platform_unix.go alone, the only file
-# its tests reach. Paths are passed relative so findings print relative.
+# internal/platform is measured through platform_unix.go alone; the branches
+# of mount_darwin.go and mount_linux.go go unmeasured. Paths are passed
+# relative so findings print relative.
 [tasks.test-cov]
 description = "Run tests with statement coverage, then branch coverage with gobco"
 run = '''

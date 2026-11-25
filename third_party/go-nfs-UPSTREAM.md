@@ -56,9 +56,9 @@ Upstream pull request text:
 ## `rpc-auth.patch`: an `Authorize` hook, and well-formed denied replies
 
 `Server.Authorize`, when set, sees the procedure number and the credential (flavor and opaque body) of every call
-before dispatch; a refusal is answered with `MSG_DENIED` / `AUTH_ERROR` (`AUTH_TOOWEAK`). davdrive uses it to
-accept only the mounting user's AUTH_SYS uid (and root), because the server listens on a TCP port every local
-account can reach.
+that has a handler, before dispatch; a refusal is answered with `MSG_DENIED` / `AUTH_ERROR` (`AUTH_TOOWEAK`).
+davdrive uses it to accept only the mounting user's AUTH_SYS uid (and root), because the server listens on a TCP
+port every local account can reach.
 
 Denials exposed two encoding bugs in every `MSG_DENIED` reply, found with a raw RPC client:
 

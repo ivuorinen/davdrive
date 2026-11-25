@@ -14,7 +14,8 @@ import (
 	"github.com/rclone/rclone/fs/rc"
 )
 
-// ErrNotRunning means no daemon answers on the control socket.
+// ErrNotRunning means nothing listens on the control socket: no socket
+// file, or a connection refused.
 var ErrNotRunning = errors.New("not running")
 
 // Status is what a daemon reports on its control socket.
