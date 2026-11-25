@@ -4,7 +4,7 @@
 
 - Go 1.27.4 or newer (`go.mod`).
 - [mise](https://mise.jdx.dev), which installs the pinned tools in `mise.toml`: golangci-lint v2 (configured by
-  `.golangci.yml`), govulncheck, goreleaser and svu.
+  `.golangci.yml`), govulncheck, goreleaser, svu and gobco.
 - [markdownlint-cli2](https://github.com/DavidAnson/markdownlint-cli2) and
   [editorconfig-checker](https://github.com/editorconfig-checker/editorconfig-checker) for the Markdown and
   whitespace rules in `.markdownlint.json` and `.editorconfig`.
@@ -15,6 +15,7 @@
 | Path                  | What it holds                                                                   |
 |-----------------------|---------------------------------------------------------------------------------|
 | `main.go`, `cmd_*.go` | The CLI: `mount`, `unmount`, `status` and the hidden `daemon` command           |
+| `nfslog.go`           | go-nfs's log messages, passed to rclone's log at their own level                |
 | `internal/config`     | Config file, paths, password resolution                                         |
 | `internal/server`     | The daemon: rclone VFS, the NFSv4 server, its access checks, the control socket |
 | `internal/fsys`       | billy filesystem for go-nfs: VFS adapter, in-memory sidecars, per-file locks    |

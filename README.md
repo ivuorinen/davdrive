@@ -89,10 +89,13 @@ terminal. It reaches the background server through a pipe, never through argumen
 `::1`), because Basic auth over http sends the password in cleartext. `mountpoint` must be absolute or start with
 `~/`.
 
-rclone's own environment variables apply to the server too: `RCLONE_VFS_*`, `RCLONE_WEBDAV_*` and rclone's global
-ones such as `RCLONE_BWLIMIT`. The config file takes precedence for `url`, `user`, the password and the values in
+rclone's own environment variables apply to the server too: `RCLONE_WEBDAV_*` for the WebDAV backend, and for each
+VFS option `RCLONE_` plus its name in capitals (`RCLONE_VFS_WRITE_BACK`, `RCLONE_DIR_CACHE_TIME`,
+`RCLONE_READ_ONLY`). The config file takes precedence for `url`, `user`, the password and the values in
 `[mounts.<name>.vfs]`, and `davdrive` always sets the cache mode, maximum age and maximum size; everything else
-can come from the environment. A leftover `RCLONE_VFS_READ_ONLY=true`, for example, gives a read-only mount.
+can come from the environment. A leftover `RCLONE_READ_ONLY=true`, for example, gives a read-only mount.
+Bandwidth limits (`RCLONE_BWLIMIT`) do nothing: rclone starts its limiter in its own command, which `davdrive`
+does not run.
 
 Several `[mounts.<name>]` tables may be defined. Commands take the name as an argument, which can be left out when
 only one mount is configured.
@@ -145,7 +148,7 @@ server is killed with uploads pending, the changed files stay in the cache and u
 Full mode is needed for speed, not just writes. The NFS server opens and closes the file for every NFS `READ` and
 `WRITE` call, and only the cache keeps the download stream open between calls.
 
-Files:
+Files (`$XDG_STATE_HOME` defaults to `~/.local/state`, `$XDG_CACHE_HOME` to `~/.cache`):
 
 | Path                                    | Contents                                      |
 |-----------------------------------------|-----------------------------------------------|

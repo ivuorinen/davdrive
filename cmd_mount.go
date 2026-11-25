@@ -40,7 +40,7 @@ func (a *app) mountCmd() *cobra.Command {
 		Long: `Mount a share; its server keeps running in the background.
 
 Without a name, mounts the only share in the config file. Mounting a share
-that is already mounted does nothing.`,
+that is already mounted does nothing; with -f it is an error.`,
 		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: a.completeNames,
 		RunE: func(cmd *cobra.Command, args []string) error {
