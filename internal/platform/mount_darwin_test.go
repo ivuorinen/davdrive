@@ -23,11 +23,11 @@ func TestMountToolErrors(t *testing.T) {
 			Mount(2049, missingMountpoint, []string{"soft", "timeo=10"}),
 			"/sbin/mount_nfs -o vers=4,port=2049,soft,timeo=10 127.0.0.1:/ " + missingMountpoint + ": mount_nfs: ",
 		},
-		{"unmount", Unmount(missingMountpoint, false, true), "/sbin/umount " + missingMountpoint + ": "},
+		{"unmount", Unmount(missingMountpoint, false, true), "/sbin/umount " + missingMountpoint + ": umount: "},
 		{
 			"forced unmount",
 			Unmount(missingMountpoint, true, false),
-			"/usr/sbin/diskutil unmount force " + missingMountpoint + ": ",
+			"/usr/sbin/diskutil unmount force " + missingMountpoint + ": Unmount failed",
 		},
 	} {
 		if tc.err == nil || !strings.HasPrefix(tc.err.Error(), tc.want) {

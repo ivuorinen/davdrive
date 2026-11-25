@@ -500,9 +500,15 @@ func TestSpawnDaemonResourceFailures(t *testing.T) {
 			m := e.mount(t, "k")
 			reapDaemon(t, m)
 			a := &app{configPath: e.cfg}
+			// Taken before setup, which may point the state directory at a
+			// file: a daemon that did start listens here.
+			socket := m.SocketPath()
 			tc.setup(t)
 			_, _, err := a.spawnDaemon(m, davPassword)
 			checkErr(t, err, tc.want)
+			if _, err := server.Query(t.Context(), socket); !errors.Is(err, server.ErrNotRunning) {
+				t.Errorf("a daemon answers after spawnDaemon failed (query: %v)", err)
+			}
 		})
 	}
 }
