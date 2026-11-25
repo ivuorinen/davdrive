@@ -19,6 +19,14 @@ import (
 // the directory on disk is exactly what reached the remote.
 func newTestFS(t *testing.T, dir string) *FS {
 	t.Helper()
+
+	return newTestFSWith(t, dir, nil)
+}
+
+// newTestFSWith is newTestFS with the VFS options passed through set, when
+// set is not nil, before the VFS starts.
+func newTestFSWith(t *testing.T, dir string, set func(*vfscommon.Options)) *FS {
+	t.Helper()
 	ctx := context.Background()
 	ri := fs.MustFind("local")
 	f, err := ri.NewFs(ctx, "test", dir, fs.ConfigMap(ri.Prefix, ri.Options, "", nil))
@@ -27,6 +35,9 @@ func newTestFS(t *testing.T, dir string) *FS {
 	}
 	opt := vfscommon.Opt
 	opt.CacheMode = vfscommon.CacheModeOff
+	if set != nil {
+		set(&opt)
+	}
 	v := vfs.New(ctx, f, &opt)
 	t.Cleanup(v.Shutdown)
 
