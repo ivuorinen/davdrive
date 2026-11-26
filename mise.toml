@@ -15,7 +15,7 @@ idiomatic_version_file_enable_tools = ["go"]
 # pins it with `go run`, because the release job has Go but not mise.
 [tools]
 golangci-lint = "2.15.0"
-goreleaser = "2.20.2"
+goreleaser = "2.20.3"
 svu = "3.4.4"
 "go:golang.org/x/vuln/cmd/govulncheck" = "1.9.0"
 "go:github.com/rillig/gobco" = "1.3.4"
