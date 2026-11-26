@@ -8,7 +8,7 @@ require (
 	github.com/rclone/rclone v1.76.0
 	github.com/spf13/cobra v1.10.2
 	github.com/willscott/go-nfs v0.0.5-0.20261124175141-19d471546678
-	golang.org/x/net v0.62.0
+	golang.org/x/net v0.63.0
 	golang.org/x/sys v0.50.0
 	golang.org/x/term v0.48.0
 )
